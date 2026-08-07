@@ -155,10 +155,16 @@
 
             <div class="input-row-controls">
               <div class="control-field">
-                <label for="model-select">Target AI Model</label>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <label for="model-select">Target AI Model</label>
+                  <button class="api-key-config-btn" id="btn-api-key" onclick="openApiKeyModal()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><path d="M21 2l-2 2m-1.5 1.5L14 9l-3 3m2-5l3 3m-4 2l-4.5 4.5a3 3 0 1 1-4.24-4.24L7.76 10.76"/></svg>
+                    <span>API Key Settings</span>
+                  </button>
+                </div>
                 <select id="model-select">
-                  <option value="auto">Auto-Detect / Dynamic Synthesizer</option>
-                  <option value="gemini" selected>Gemini Cloud API (Key Enabled)</option>
+                  <option value="auto" selected>Auto-Detect / Dynamic Synthesizer</option>
+                  <option value="gemini">Gemini Cloud API (Key Enabled)</option>
                   <option value="qwen2.5-coder:1.5b">Qwen 2.5 Coder 1.5B (Local Ollama)</option>
                   <option value="llama3.2:latest">Llama 3.2 (Local Ollama)</option>
                 </select>
@@ -226,14 +232,6 @@
             </div>
           </div>
 
-          <!-- Real-Time Swarm Progress Bar -->
-          <div class="swarm-progress-bar-container">
-            <div class="swarm-progress-track">
-              <div class="swarm-progress-fill" id="swarm-progress-fill" style="width: 0%;"></div>
-            </div>
-            <div class="swarm-progress-text" id="swarm-progress-text">Swarm Pipeline Standby — 0% Complete</div>
-          </div>
-
           <div class="agents-pipeline">
             <!-- Agent 1 -->
             <div class="agent-node card-static-pop" id="agent-coder">
@@ -245,7 +243,9 @@
               <div class="agent-status" id="status-coder"><span class="status-dot dot-idle"></span> IDLE</div>
             </div>
 
-            <div class="pipeline-connector animated-bounce">➔</div>
+            <div class="pipeline-connector animated-bounce">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </div>
 
             <!-- Agent 2 -->
             <div class="agent-node card-static-pop" id="agent-tester">
@@ -257,7 +257,9 @@
               <div class="agent-status" id="status-tester"><span class="status-dot dot-idle"></span> IDLE</div>
             </div>
 
-            <div class="pipeline-connector animated-bounce">➔</div>
+            <div class="pipeline-connector animated-bounce">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </div>
 
             <!-- Agent 3 -->
             <div class="agent-node card-static-pop" id="agent-hacker">
@@ -269,7 +271,9 @@
               <div class="agent-status" id="status-hacker"><span class="status-dot dot-idle"></span> IDLE</div>
             </div>
 
-            <div class="pipeline-connector animated-bounce">➔</div>
+            <div class="pipeline-connector animated-bounce">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </div>
 
             <!-- Agent 4 -->
             <div class="agent-node card-static-pop" id="agent-patcher">
@@ -299,8 +303,18 @@
             <div class="editor-header">
               <span>Source Code Workspace: Edit app.py directly to test security posture</span>
               <div class="editor-actions">
-                <button class="copy-code-btn btn-3d" id="copy-code-btn" onclick="copyActiveCode()">📋 Copy Code</button>
-                <button class="edit-toggle-btn btn-3d" id="edit-toggle-btn" onclick="toggleEditMode()">✏️ Edit Custom Code</button>
+                <button class="run-code-action-btn btn-3d glow-button" id="btn-run-app-code" onclick="runActiveProgramCode()">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  <span>Run Program</span>
+                </button>
+                <button class="copy-code-btn btn-3d" id="copy-code-btn" onclick="copyActiveCode()">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy Code</span>
+                </button>
+                <button class="edit-toggle-btn btn-3d" id="edit-toggle-btn" onclick="toggleEditMode()">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  <span>Edit Custom Code</span>
+                </button>
                 <button class="audit-custom-btn btn-3d glow-button" onclick="auditCustomCode()">Audit Code Changes</button>
               </div>
             </div>
@@ -308,6 +322,76 @@
             <div class="code-container vscode-theme-box">
               <pre class="vscode-code-pre"><code class="language-python" id="code-display"># Code output will render here with VS Code syntax highlighting...</code></pre>
               <textarea id="code-editor" spellcheck="false" placeholder="# Source code workspace..." style="display: none;"></textarea>
+            </div>
+
+            <!-- Command Prompt Interactive Terminal & Input Validation Block -->
+            <div class="cmd-terminal-block card-static-pop" id="cmd-prompt-terminal-block">
+              <div class="cmd-terminal-header">
+                <div class="cmd-terminal-title-group">
+                  <span class="cmd-icon-svg">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                  </span>
+                  <span class="cmd-terminal-title">Command Prompt - Python 3.12 Interactive Terminal</span>
+                  <span class="cmd-status-badge">ONLINE</span>
+                </div>
+                <div class="cmd-terminal-actions">
+                  <button class="cmd-action-btn cmd-clear-btn" onclick="clearCmdTerminal()" title="Clear Terminal Screen">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                    <span>Clear</span>
+                  </button>
+                  <div class="cmd-window-dots">
+                    <span class="cmd-dot cmd-dot-min"></span>
+                    <span class="cmd-dot cmd-dot-max"></span>
+                    <span class="cmd-dot cmd-dot-close"></span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Terminal Output Display Body -->
+              <div class="cmd-terminal-body" id="cmd-terminal-body">
+                <div class="cmd-banner">
+                  <div>Microsoft Windows [Version 10.0.22631.4112]</div>
+                  <div>DevSecOps Subprocess Engine &bull; Python 3.12.9 (64-bit AMD64)</div>
+                  <div>Type any input below to validate expressions, user attributes, or test inputs live.</div>
+                </div>
+                <div class="cmd-history-container" id="cmd-terminal-history">
+                  <div class="cmd-output-line cmd-line-info">
+                    <span class="cmd-prompt-label">C:\Users\DevSecOps&gt;</span>
+                    <span class="cmd-line-text">python generated_app.py --ready</span>
+                  </div>
+                  <pre class="cmd-output-pre" id="cmd-terminal-output-text">Ready for live program execution and input validation. Click "Run App" or enter input below.</pre>
+                </div>
+              </div>
+
+              <!-- Interactive Input Validation Bar -->
+              <div class="cmd-input-bar">
+                <span class="cmd-input-prompt-label">C:\Users\DevSecOps&gt;</span>
+                <input 
+                  type="text" 
+                  id="cmd-terminal-input" 
+                  class="cmd-terminal-input" 
+                  placeholder="Enter input to validate (e.g. 25 + 50, Alice, STU-101, alice@example.com) or type command..." 
+                  onkeydown="handleTerminalInputKey(event)"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+                <button class="cmd-submit-btn btn-3d" id="cmd-submit-btn" onclick="submitTerminalInput()">
+                  <span>Validate Input</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 10 4 15 9 20"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/></svg>
+                </button>
+              </div>
+
+              <!-- Quick Input Suggestion Chips -->
+              <div class="cmd-quick-chips">
+                <span class="cmd-chip-label">Quick Inputs:</span>
+                <button class="cmd-chip" onclick="setQuickInput('25 * 4')">25 * 4</button>
+                <button class="cmd-chip" onclick="setQuickInput('alice@example.com')">alice@example.com</button>
+                <button class="cmd-chip" onclick="setQuickInput('Alice')">Alice</button>
+                <button class="cmd-chip" onclick="setQuickInput('STU-101')">STU-101</button>
+                <button class="cmd-chip" onclick="setQuickInput('978-0132350884')">978-0132350884</button>
+                <button class="cmd-chip" onclick="setQuickInput('EMP-001')">EMP-001</button>
+                <button class="cmd-chip" onclick="setQuickInput('python generated_app.py')">python generated_app.py</button>
+              </div>
             </div>
           </div>
 
@@ -403,6 +487,20 @@
           </div>
         </section>
       </main>
+    </div>
+  <!-- API Key Configuration Modal -->
+  <div class="api-key-modal-backdrop" id="api-key-modal" style="display: none;" onclick="closeApiKeyModal(event)">
+    <div class="api-key-modal-card card-static-pop glassmorphic" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3> Configure Google Gemini API Key</h3>
+        <button class="modal-close-btn" onclick="closeApiKeyModal()">✕</button>
+      </div>
+      <p class="modal-desc">Enter your Google AI Studio API key (starts with <code>AIzaSy...</code>) to execute real cloud AI generation:</p>
+      <div class="modal-input-row">
+        <input type="password" id="gemini-api-key-input" placeholder="AIzaSy..." value="">
+        <button class="modal-save-btn btn-3d glow-button" onclick="saveApiKey()">Save Key</button>
+      </div>
+      <div class="modal-note">Your key is stored locally in your browser and automatically sent to your active DevSecOps server.</div>
     </div>
   </div>
 

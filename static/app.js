@@ -384,6 +384,7 @@ function switchTab(tabName) {
 }
 
 function executeSwarmLoop() {
+  isRunning = false;
   startSwarm();
 }
 
@@ -392,33 +393,24 @@ function downloadSecurePackage() {
 }
 
 function startSwarm() {
-  if (isRunning) return;
-
   if (!currentUser) {
     currentUser = { id: "guest_devsecops_user", email: "guest@devsecops.io" };
   }
 
   if (!currentSessionId) {
-    fetch("/api/sessions/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: currentUser.id, title: "New Program Workspace" })
-    })
-    .then(res => res.json())
-    .then(newSession => {
-      currentSessionId = newSession.id;
-      sessionsList.unshift(newSession);
-      renderSidebarSessions();
-      startSwarm();
-    })
-    .catch(err => console.error("Error creating session:", err));
-    return;
+    currentSessionId = "session_" + Date.now();
+    const newSession = { id: currentSessionId, title: "New Program Workspace", created_at: new Date().toISOString() };
+    sessionsList.unshift(newSession);
+    renderSidebarSessions();
   }
 
   const promptInput = document.getElementById("prompt-input");
   const prompt = promptInput ? promptInput.value.trim() : "";
-  const maxLoops = parseInt(document.getElementById("max-loops-select").value) || 10;
-  const selectedModel = document.getElementById("model-select").value;
+  const maxLoopsEl = document.getElementById("max-loops-select");
+  const maxLoops = maxLoopsEl ? (parseInt(maxLoopsEl.value) || 10) : 10;
+  const modelSelectEl = document.getElementById("model-select");
+  const selectedModel = modelSelectEl ? modelSelectEl.value : "auto";
+
   if (!prompt) {
     alert("Please enter a software prompt to execute!");
     return;
@@ -432,6 +424,7 @@ function startSwarm() {
   }
 
   resetUI(maxLoops);
+  appendTerminal(`\n[Swarm Trigger] Executing swarm for: "${prompt}"...`, "system");
 
   fetch("/api/swarm/execute", {
     method: "POST",
@@ -441,11 +434,17 @@ function startSwarm() {
       max_loops: maxLoops,
       selected_model: selectedModel,
       user_id: currentUser.id,
-      session_id: currentSessionId
+      session_id: currentSessionId,
+      api_key: localStorage.getItem("gemini_api_key") || null
     })
-  }).then(res => res.json())
+  }).then(res => {
+    if (!res.ok) {
+      throw new Error(`Server returned HTTP ${res.status}`);
+    }
+    return res.json();
+  })
   .then(data => {
-    appendTerminal(`[System] Swarm workflow triggered for prompt: "${prompt}" (Session: ${currentSessionId})`, "system");
+    appendTerminal(`[System] Swarm workflow active (Session: ${currentSessionId})`, "system");
     setTimeout(loadUserSessions, 1000);
   }).catch(err => {
     console.error("Failed to start swarm:", err);
@@ -454,7 +453,36 @@ function startSwarm() {
       runBtn.disabled = false;
       runBtn.innerText = "Execute Swarm Loop";
     }
+    appendTerminal(`[Error] Failed to start swarm: ${err.message}`, "system");
   });
+}
+
+function openApiKeyModal() {
+  const modal = document.getElementById("api-key-modal");
+  const input = document.getElementById("gemini-api-key-input");
+  const savedKey = localStorage.getItem("gemini_api_key") || "";
+  if (input) input.value = savedKey;
+  if (modal) modal.style.display = "flex";
+}
+
+function closeApiKeyModal(e) {
+  const modal = document.getElementById("api-key-modal");
+  if (modal) modal.style.display = "none";
+}
+
+function saveApiKey() {
+  const input = document.getElementById("gemini-api-key-input");
+  if (input) {
+    const key = input.value.trim();
+    if (key) {
+      localStorage.setItem("gemini_api_key", key);
+      appendTerminal(`[Auth] Saved custom Gemini API Key (${key.slice(0, 8)}...). Cloud AI code generation enabled.`, "system");
+    } else {
+      localStorage.removeItem("gemini_api_key");
+      appendTerminal(`[Auth] Gemini API Key cleared.`, "system");
+    }
+  }
+  closeApiKeyModal();
 }
 
 function toggleEditMode() {
@@ -466,11 +494,11 @@ function toggleEditMode() {
   if (isEditMode) {
     displayPre.style.display = "none";
     editorArea.style.display = "block";
-    toggleBtn.innerText = "👁️ View Highlighted Code";
+    toggleBtn.innerText = "View Highlighted Code";
   } else {
     displayPre.style.display = "block";
     editorArea.style.display = "none";
-    toggleBtn.innerText = "✏️ Edit Custom Code";
+    toggleBtn.innerText = "Edit Custom Code";
     updateCodeView(editorArea.value);
   }
 }
@@ -584,7 +612,6 @@ function resetUI(maxLoops = 10) {
   document.querySelectorAll(".agent-status").forEach(st => {
     st.innerHTML = '<span class="status-dot dot-idle"></span> IDLE';
   });
-  updateSwarmProgress(0, "Standby");
 
   // Clear Code Editor tab
   updateCodeView("# New program workspace created.\nEnter a prompt above to generate software...");
@@ -804,11 +831,157 @@ function copyActiveCode() {
   }).catch(err => console.error("Copy failed:", err));
 }
 
-function updateSwarmProgress(pct, statusMsg) {
-  const fill = document.getElementById("swarm-progress-fill");
-  const txt = document.getElementById("swarm-progress-text");
-  if (fill) fill.style.width = `${pct}%`;
-  if (txt) txt.innerText = `Swarm Pipeline: ${statusMsg} — ${pct}% Complete`;
+function runActiveProgramCode() {
+  const codeDisplay = document.getElementById("code-display");
+  const codeEditor = document.getElementById("code-editor");
+  const runBtn = document.getElementById("btn-run-app-code");
+  const outputBlock = document.getElementById("program-output-block");
+  const outputText = document.getElementById("program-output-text");
+
+  const codeToRun = (isEditMode && codeEditor) ? codeEditor.value : (codeDisplay ? codeDisplay.innerText : "");
+  if (!codeToRun || !codeToRun.trim()) {
+    alert("No program code to execute!");
+    return;
+  }
+
+  if (outputBlock) outputBlock.style.display = "block";
+  if (outputText) outputText.innerText = "Executing Python program in subprocess sandbox...\n";
+  if (runBtn) {
+    runBtn.disabled = true;
+    runBtn.innerText = "▶️ Running...";
+  }
+
+  const userId = currentUser ? currentUser.id : "guest_devsecops_user";
+  const sessionId = currentSessionId || "main";
+
+  const termText = document.getElementById("cmd-terminal-output-text");
+  const termBody = document.getElementById("cmd-terminal-body");
+  if (termText) {
+    termText.innerText = "Executing generated_app.py in isolated subprocess...\n";
+  }
+
+  fetch("/api/swarm/run-generated-code", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      user_id: userId,
+      session_id: sessionId,
+      code: codeToRun
+    })
+  })
+  .then(res => {
+    if (!res.ok) {
+      return res.text().then(errText => {
+        throw new Error(`Server Error (${res.status}): ${errText.slice(0, 120)}`);
+      });
+    }
+    return res.json();
+  })
+  .then(data => {
+    if (runBtn) {
+      runBtn.disabled = false;
+      runBtn.innerText = "Run Program";
+    }
+    if (termText) {
+      termText.innerText = data.output || "[Process finished with exit code 0 and zero console output]";
+    }
+    if (termBody) {
+      termBody.scrollTop = termBody.scrollHeight;
+    }
+    appendTerminal(`[Execution] Output rendered to Command Prompt terminal for session: ${sessionId}`, "system");
+  })
+  .catch(err => {
+    console.error("Error executing program:", err);
+    if (runBtn) {
+      runBtn.disabled = false;
+      runBtn.innerText = "Run Program";
+    }
+    if (termText) {
+      termText.innerText = `[Execution Failed] ${err.message}`;
+    }
+  });
+}
+
+function clearCmdTerminal() {
+  const termText = document.getElementById("cmd-terminal-output-text");
+  if (termText) {
+    termText.innerText = "Command Prompt terminal reset. Ready for live execution or validation.";
+  }
+  const inputEl = document.getElementById("cmd-terminal-input");
+  if (inputEl) inputEl.value = "";
+}
+
+function handleTerminalInputKey(e) {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    submitTerminalInput();
+  }
+}
+
+function setQuickInput(val) {
+  const inputEl = document.getElementById("cmd-terminal-input");
+  if (inputEl) {
+    inputEl.value = val;
+    inputEl.focus();
+    submitTerminalInput();
+  }
+}
+
+function submitTerminalInput() {
+  const inputEl = document.getElementById("cmd-terminal-input");
+  const submitBtn = document.getElementById("cmd-submit-btn");
+  const termText = document.getElementById("cmd-terminal-output-text");
+  const termBody = document.getElementById("cmd-terminal-body");
+
+  if (!inputEl) return;
+  const rawInput = inputEl.value.trim();
+  if (!rawInput) return;
+
+  if (submitBtn) submitBtn.disabled = true;
+
+  const userId = currentUser ? currentUser.id : "guest_devsecops_user";
+  const sessionId = currentSessionId || "main";
+  const codeEditor = document.getElementById("code-editor");
+  const codeDisplay = document.getElementById("code-display");
+  const currentCode = (isEditMode && codeEditor) ? codeEditor.value : (codeDisplay ? codeDisplay.innerText : "");
+
+  // Append user command line to terminal output
+  if (termText) {
+    termText.innerText += `\n\nC:\\Users\\DevSecOps> validate "${rawInput}"\n[Validating Input against Python Module Runtime...]`;
+    if (termBody) termBody.scrollTop = termBody.scrollHeight;
+  }
+
+  fetch("/api/swarm/validate-input", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      user_id: userId,
+      session_id: sessionId,
+      input_text: rawInput,
+      code: currentCode
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (submitBtn) submitBtn.disabled = false;
+    if (termText) {
+      termText.innerText += `\n${data.output || "[Input validation completed with 0 errors]"}`;
+      if (termBody) termBody.scrollTop = termBody.scrollHeight;
+    }
+  })
+  .catch(err => {
+    if (submitBtn) submitBtn.disabled = false;
+    if (termText) {
+      termText.innerText += `\n[Validation Error] ${err.message}`;
+      if (termBody) termBody.scrollTop = termBody.scrollHeight;
+    }
+  });
+
+  inputEl.value = "";
+}
+
+function clearProgramOutput() {
+  clearCmdTerminal();
 }
 
 function setAgentState(agentId, className, statusText) {
@@ -819,9 +992,9 @@ function setAgentState(agentId, className, statusText) {
   }
   
   let dotClass = "dot-idle";
-  if (className === "executing") {
+  if (className === "running" || className === "executing") {
     dotClass = "dot-executing";
-  } else if (className === "passed") {
+  } else if (className === "success" || className === "passed" || className === "patched") {
     dotClass = "dot-passed";
   } else if (className === "vulnerable") {
     dotClass = "dot-vulnerable";
@@ -832,11 +1005,6 @@ function setAgentState(agentId, className, statusText) {
   if (statusEl) {
     statusEl.innerHTML = `<span class="status-dot ${dotClass}"></span> ${statusText}`;
   }
-
-  if (agentId === "coder" && className === "executing") updateSwarmProgress(25, "Coder Agent Synthesizing Code");
-  else if (agentId === "tester" && className === "executing") updateSwarmProgress(50, "Tester Agent Running Pytest Suite");
-  else if (agentId === "hacker" && className === "executing") updateSwarmProgress(75, "Hacker Agent Running Bandit SAST Audit");
-  else if (agentId === "patcher" && (className === "remediated" || className === "passed")) updateSwarmProgress(100, "Patcher Agent Remediation Complete (Grade A+)");
 }
 
 function appendTerminal(text, type = "") {
