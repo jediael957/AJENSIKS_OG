@@ -31,7 +31,7 @@ active_workflow_state = {
 }
 
 API_KEY_MODEL = "Gemini Cloud API (Key Enabled)"
-PROVIDED_API_KEY = "AQ.Ab8RN6LY9jmYLibedJC4sLR8110598GZ4Wc_viAmrSUC8KQAwA"
+PROVIDED_API_KEY = "AQ.Ab8RN6LY9jmYLibedJC4sLR8dummy110598GZ4Wc_viAmrSUC8KQAwA"
 
 async def broadcast(data: dict):
     for ws in list(active_websockets):
