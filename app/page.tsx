@@ -1,19 +1,11 @@
 'use client';
 
 import { useEffect } from 'react';
-import { supabase } from '../lib/supabaseClient';
 
 export default function HomePage() {
   useEffect(() => {
-    const redirectUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        window.location.href = '/dashboard';
-      } else {
-        window.location.href = '/login';
-      }
-    };
-    redirectUser();
+    // Direct seamlessly to the DevSecOps AI Swarm Platform
+    window.location.replace('/index.html');
   }, []);
 
   return (
@@ -26,7 +18,7 @@ export default function HomePage() {
       color: '#f3f4f6',
       fontFamily: 'system-ui, sans-serif'
     }}>
-      <p>Redirecting to Multi-Tenant Workspace...</p>
+      <p>Loading DevSecOps AI Swarm Platform...</p>
     </div>
   );
 }
