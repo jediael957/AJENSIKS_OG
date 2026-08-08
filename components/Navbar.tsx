@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { supabase } from '../lib/supabaseClient';
 import { User } from '@supabase/supabase-js';
 
@@ -42,11 +43,12 @@ export default function Navbar({ user, onSignOut }: NavbarProps) {
             </button>
           </>
         ) : (
-          <a href="/login" className="btn-login-link">
+          <Link href="/login" className="btn-login-link">
             Sign In
-          </a>
+          </Link>
         )}
       </div>
     </header>
   );
 }
+
