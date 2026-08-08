@@ -145,37 +145,83 @@ async function handleSignOut() {
   }
 }
 
+function getApiBaseUrl() {
+  const customBackend = localStorage.getItem("devsecops_backend_url");
+  if (customBackend) {
+    return customBackend.replace(/\/$/, "");
+  }
+  return "";
+}
+
 function initWebSocket() {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${window.location.host}/ws/swarm`;
+  const customBackend = localStorage.getItem("devsecops_backend_url");
+  let wsUrl;
   
-  ws = new WebSocket(wsUrl);
-
-  ws.onopen = () => {
-    console.log("WebSocket connected to DevSecOps Swarm.");
-    const st = document.getElementById("status-text");
-    if (st) st.innerText = "System Ready";
-  };
-
-  ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    if (!data.user_id || (currentUser && data.user_id === currentUser.id)) {
-      if (!data.session_id || data.session_id === currentSessionId) {
-        handleSwarmEvent(data);
-      }
+  if (customBackend) {
+    const isHttps = customBackend.startsWith("https:");
+    const cleanHost = customBackend.replace(/^https?:\/\//, "").replace(/\/$/, "");
+    wsUrl = `${isHttps ? "wss:" : "ws:"}//${cleanHost}/ws/swarm`;
+  } else {
+    // If running on Vercel serverless domain, WebSocket server isn't co-located
+    const isVercel = window.location.hostname.includes("vercel.app");
+    if (isVercel) {
+      console.warn("Running on Vercel without a custom backend URL. Connect your Render/Railway backend for live WebSockets.");
+      const st = document.getElementById("status-text");
+      if (st) st.innerText = "Frontend Active (Vercel Mode)";
+      return;
     }
-  };
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    wsUrl = `${protocol}//${window.location.host}/ws/swarm`;
+  }
+  
+  try {
+    ws = new WebSocket(wsUrl);
 
-  ws.onclose = () => {
-    setTimeout(initWebSocket, 3000);
-  };
+    ws.onopen = () => {
+      console.log("WebSocket connected to DevSecOps Swarm:", wsUrl);
+      const st = document.getElementById("status-text");
+      if (st) st.innerText = "System Ready (Backend Connected)";
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (!data.user_id || (currentUser && data.user_id === currentUser.id)) {
+          if (!data.session_id || data.session_id === currentSessionId) {
+            handleSwarmEvent(data);
+          }
+        }
+      } catch (e) {
+        console.error("Error parsing WebSocket message:", e);
+      }
+    };
+
+    ws.onerror = () => {
+      const st = document.getElementById("status-text");
+      if (st) st.innerText = "Backend Offline • Connect URL or API Key";
+    };
+
+    ws.onclose = () => {
+      // Reconnect after 6s if not on vercel default
+      if (!window.location.hostname.includes("vercel.app")) {
+        setTimeout(initWebSocket, 6000);
+      }
+    };
+  } catch (err) {
+    console.warn("WebSocket init error:", err);
+  }
 }
 
 function loadAvailableModels() {
-  fetch("/api/models")
-    .then(res => res.json())
+  const apiBase = getApiBaseUrl();
+  fetch(`${apiBase}/api/models`)
+    .then(res => {
+      if (!res.ok) throw new Error("Backend not reachable");
+      return res.json();
+    })
     .then(data => {
       const select = document.getElementById("model-select");
+      if (!select) return;
       select.innerHTML = "";
       if (data.models && data.models.length > 0) {
         data.models.forEach(m => {
@@ -186,13 +232,69 @@ function loadAvailableModels() {
         });
       }
     })
-    .catch(err => console.error("Failed to load models:", err));
+    .catch(err => {
+      // Graceful fallback for Vercel deployment
+      const select = document.getElementById("model-select");
+      if (select && select.children.length === 0) {
+        const defaultModels = [
+          "Gemini Cloud API (Key Enabled)",
+          "Gemini 1.5 Flash (Fast Synthesizer)",
+          "Gemini 1.5 Pro (Deep Reasoning)",
+          "Auto-Detect / Dynamic Synthesizer"
+        ];
+        select.innerHTML = "";
+        defaultModels.forEach(m => {
+          const opt = document.createElement("option");
+          opt.value = m;
+          opt.innerText = m;
+          select.appendChild(opt);
+        });
+      }
+    });
 }
 
 function loadUserSessions() {
   if (!currentUser) return;
+  const apiBase = getApiBaseUrl();
 
-  fetch(`/api/sessions/${currentUser.id}`)
+  fetch(`${apiBase}/api/sessions/${currentUser.id}`)
+    .then(res => {
+      if (!res.ok) throw new Error("Backend sessions endpoint unavailable");
+      return res.json();
+    })
+    .then(sessions => {
+      sessionsList = sessions || [];
+      renderSidebarSessions();
+      if (sessionsList.length > 0 && !currentSessionId) {
+        loadSession(sessionsList[0].id);
+      } else if (sessionsList.length === 0) {
+        createNewChatSession();
+      }
+    })
+    .catch(err => {
+      // Vercel client-side fallback storage
+      const localKey = `devsecops_sessions_${currentUser.id}`;
+      const saved = localStorage.getItem(localKey);
+      if (saved) {
+        try {
+          sessionsList = JSON.parse(saved);
+        } catch (e) {
+          sessionsList = [];
+        }
+      }
+      if (!sessionsList || sessionsList.length === 0) {
+        sessionsList = [{
+          id: "session_default",
+          title: "Main Security Workspace",
+          created_at: new Date().toISOString()
+        }];
+      }
+      renderSidebarSessions();
+      if (!currentSessionId) {
+        currentSessionId = sessionsList[0].id;
+      }
+    });
+}
     .then(res => res.json())
     .then(sessions => {
       sessionsList = sessions || [];
